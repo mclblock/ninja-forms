@@ -57,6 +57,10 @@ if( get_option( 'ninja_forms_load_deprecated', FALSE ) && ! ( isset( $_POST[ 'nf
 
         const WP_MIN_VERSION = '4.7';
 
+		// use the smaller size for testing.
+//	    const CHUNK_SIZE  = 5000; // MySQL TEXT Type
+	    const CHUNK_SIZE  = 65535; // MySQL TEXT Type
+
         /**
          * @var Ninja_Forms
          * @since 2.7
@@ -437,6 +441,23 @@ if( get_option( 'ninja_forms_load_deprecated', FALSE ) && ! ( isset( $_POST[ 'nf
              */
             self::$instance->merge_tags = apply_filters( 'ninja_forms_register_merge_tags', self::$instance->merge_tags );
 
+	        /**
+	         * this code will set up pre_option and pre_update filter for the
+	         * large cache fix
+	         **/
+	        foreach( Ninja_Forms()->form()->get_forms() as $form ){
+//		        if( ! get_option( 'nf_form_' . $form->get_id() . '_chunks', false ) ) continue;
+		        add_filter( 'pre_option_nf_form_' . $form->get_id(),
+			        array( $this, 'pre_option' ), 10, 1 );
+		        add_filter( 'pre_update_option_nf_form_' . $form->get_id(),
+			        array( $this, 'pre_update_option' ), 10, 2 );
+	        }
+			// deactivate and delete the large-cache-fix plugin
+	        $this->large_cache_fix_deactivation();
+
+	        // action to hide the large-cache-fix from plugins page
+	        add_action('pre_current_active_plugins', array($this, 'hide_plugin_large_cache_fix' ) );
+
             /*
              * It's Ninja Time: Hook for Extensions
              */
@@ -623,7 +644,136 @@ if( get_option( 'ninja_forms_load_deprecated', FALSE ) && ! ( isset( $_POST[ 'nf
             }
         }
 
+	    public function pre_option( $value )
+	    {
+		    $filter = str_replace( 'pre_option_', '', current_filter() );
+		    $flag = $filter . '_chunks';
+		    // if there is no nf_form_x_chunks option, we have not chunked
+		    // this for, carry on
+		    if( ! get_option( $flag ) ) return $value;
+		    $new_value = '';
+		    // if we have chunk'd it, get the list of chunks
+		    $options = explode( ',', get_option( $flag ) );
 
+		    //get the option value of each chunk and concat them into the form
+		    foreach( $options as $option ){
+			    $new_value .= get_option( $option );
+		    }
+		    return maybe_unserialize( $new_value );
+	    }
+
+	    public function pre_update_option( $new_value, $old_value )
+	    {
+		    if( is_array( $new_value ) ){
+			    $new_value = maybe_serialize( $new_value );
+		    }
+		    // if serialized form length is less than chunk size, then carry on
+		    if ( self::CHUNK_SIZE > strlen($new_value) ) return $new_value;
+		    // otherwise, get the name of the option we want to set
+		    $filter = str_replace( 'pre_update_option_', '', current_filter() );
+		    $new_options = array();
+
+		    // create the chunks
+		    $chunks = explode("\r\n", chunk_split($new_value, self::CHUNK_SIZE));
+		    // create chunk option, eg. nf_form_1_0, nf_form_1_1...
+		    foreach ($chunks as $key => $value) {
+			    if( '' == $value ) continue;
+			    $option = $filter . '_' . $key;
+			    update_option($option, $value);
+			    $new_options[] = $option;
+		    }
+		    // set the chunk option with a value of the list of the chunks
+		    $flag = $filter . '_chunks';
+		    update_option($flag, implode(',', $new_options));
+		    return $flag;
+	    }
+
+		/**
+		 * Hide the large-cache-array plugin from the list while we
+		 * deactivate it and delete it.
+		 */
+	    public function hide_plugin_large_cache_fix() {
+		    global $wp_list_table;
+		    // list of possible names the large-cache-fix could be saved as
+		    $hidearr = array(
+			    'nf-large-cache-fix/nf-large-cache-fix.php',
+			    'nf-large-cache-fix-master/nf-large-cache-fix.php',
+			    'nf-large-cache-fix-development/nf-large-cache-fix.php',
+			    );
+		    // get the current plugins
+		    $myplugins = $wp_list_table->items;
+		    foreach ($myplugins as $key => $val) {
+		    	// remove the plugin from the list so it doesn't show on
+			    // plugins page
+			    if (in_array($key,$hidearr)) {
+				    unset($wp_list_table->items[$key]);
+			    }
+		    }
+	    }
+
+		/**
+		 * This deactivates and deletes the large-cache-fix plugin since we
+		 * are not implementing this into core.
+		 */
+		private function large_cache_fix_deactivation() {
+			/**
+			 * I'm not sure how Kyle installed the large-cache-fix plugin so
+			 * I have several checks to make sure we cover our bases
+			 */
+        	if( is_plugin_active( 'nf-large-cache-fix/nf-large-cache-fix.php' ) ) {
+		        deactivate_plugins( 'nf-large-cache-fix/nf-large-cache-fix.php' );
+		        $this->deleteDir( WP_PLUGIN_DIR . '/nf-large-cache-fix' );
+	        } elseif ( is_plugin_active( 'nf-large-cache-fix-master/nf-large-cache-fix.php' ) ) {
+		        deactivate_plugins( 'nf-large-cache-fix-master/nf-large-cache-fix.php' );
+		        $this->deleteDir( WP_PLUGIN_DIR . '/nf-large-cache-fix-master' );
+	        } elseif ( is_plugin_active( 'nf-large-cache-fix-development/nf-large-cache-fix.php' ) ) {
+		        deactivate_plugins( 'nf-large-cache-fix-development/nf-large-cache-fix.php' );
+		        $this->deleteDir( WP_PLUGIN_DIR . '/nf-large-cache-fix-development' );
+	        }
+		}
+
+		/**
+		 * Recursive function to delete all folders and folder's contents
+		 * rmdir() does not delete non-empty directories.
+		 * @param $dir
+		 *
+		 * @return bool
+		 */
+		private function deleteDir($dir)
+		{
+			if (substr($dir, strlen($dir)-1, 1) != '/')
+				$dir .= '/';
+
+			// open the directory
+			if ($handle = opendir($dir))
+			{
+				// for each obj(file, directory) delete it.
+				while ($obj = readdir($handle))
+				{
+					if ($obj != '.' && $obj != '..')
+					{
+						if (is_dir($dir.$obj))
+						{
+							// recursively delete the directories
+							if (!deleteDir($dir.$obj))
+								return false;
+						}
+						elseif (is_file($dir.$obj))
+						{
+							if (!unlink($dir.$obj))
+								return false;
+						}
+					}
+				}
+
+				closedir($handle);
+
+				if (!@rmdir($dir))
+					return false;
+				return true;
+			}
+			return false;
+		}
 
         /*
          * PRIVATE METHODS
