@@ -4,6 +4,10 @@ class NF_AJAX_Controllers_Form extends NF_Abstracts_Controller
 {
     private $publish_processing;
 
+//	// use the smaller size for testing.
+//	const CHUNK_SIZE  = 1000; // MySQL TEXT Type
+////	    const CHUNK_SIZE  = 65535; // MySQL TEXT Type
+
     public function __construct()
     {
         add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
@@ -37,7 +41,11 @@ class NF_AJAX_Controllers_Form extends NF_Abstracts_Controller
         } else {
             $form = Ninja_Forms()->form($form_data['id'])->get();
         }
-        
+	    add_filter( 'pre_option_nf_form_' . $form->get_id(),
+		    'WPN_Helper::pre_option', 10, 1 );
+	    add_filter( 'pre_update_option_nf_form_' . $form->get_id(),
+		    'WPN_Helper::pre_update_option', 10, 2 );
+
         unset( $form_data[ 'settings' ][ '_seq_num' ] );
 
         $form->update_settings( $form_data[ 'settings' ] )->save();
