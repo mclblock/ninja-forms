@@ -344,7 +344,7 @@ class NF_Admin_CPT_Submission
         $hidden_columns = get_user_option( 'manageedit-nf_subcolumnshidden-form-' . $form_id );
 
         // Checks to see if hidden columns are in the format expected for 2.9.x and converts formatting.
-        if( strpos( $hidden_columns[ 0 ], 'form_'  ) !== false ) {
+        if(  ! empty( $hidden_columns ) && strpos( $hidden_columns[ 0 ], 'form_'  ) !== false  ) {
             $hidden_columns = $this->convert_hidden_columns( $form_id, $hidden_columns );
         }
 
