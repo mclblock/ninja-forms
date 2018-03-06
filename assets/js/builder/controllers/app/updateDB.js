@@ -30,8 +30,6 @@ define( [], function() {
 		 * @return void
 		 */
 		updateDB: function( action ) {
-			// if the form string is long than this, chunk it
-			var chunk_size = 8192;
 
 			// If our app is clean, dont' update.
 			if ( nfRadio.channel( 'app' ).request( 'get:setting', 'clean' ) ) {
@@ -46,6 +44,7 @@ define( [], function() {
 				var jsAction = 'nf_preview_update';
 			} else if ( 'publish' == action ) {
 				// var jsAction = 'nf_save_form';
+				// now using a different ajax action
 				var jsAction = 'nf_batch_process';
 			}
 
@@ -211,12 +210,6 @@ define( [], function() {
 			// Turn our object into a JSON string.
 			data = JSON.stringify( data );
 
-			var data_chunks = [];
-
-			if( chunk_size < data.length ) {
-				data_chunks = data.match(new RegExp('.{1,' + chunk_size + '}', 'g'));
-			}
-
 			// Run anything that needs to happen before we update.
 			nfRadio.channel( 'app' ).trigger( 'before:updateDB', data );
 
@@ -230,24 +223,29 @@ define( [], function() {
 				}
 			}
 
-			var postObj = {};
-			var total_chunks = 0;
-			var current_chunk_index = 0;
-
 			if ( 'nf_batch_process' === jsAction ) {
+				// if the form string is long than this, chunk it
+				var chunk_size = 8192;
+				var data_chunks = [];
 
+				// Let's chunk this
+				if( chunk_size < data.length ) {
+					data_chunks = data.match(new RegExp('.{1,' + chunk_size + '}', 'g'));
+				}
+
+				console.log(data_chunks);
+				// this function will make the ajax call for chunks
 				this.saveChunkedForm( data_chunks, 0, 1, jsAction, action );
 
 			} else if ( 'nf_preview_update' === jsAction ) {
-				postObj = {
-					action: jsAction,
-					form: data,
-					security: nfAdmin.ajaxNonce
-				};
 				var context = this;
 				var responseData = null;
 				jQuery.post( ajaxurl,
-					postObj,
+					{
+						action: jsAction,
+						form: data,
+						security: nfAdmin.ajaxNonce
+					},
 					function( response ) {
 						responseData = response;
 						context.handleFinalResponse( responseData, action );
@@ -257,7 +255,15 @@ define( [], function() {
 				} );
 			}
 		},
-
+		/**
+		 * Function to recursively send chunks until all chunks have been sent
+		 *
+		 * @param chunks
+		 * @param currentIndex
+		 * @param currentChunk
+		 * @param jsAction
+		 * @param action
+		 */
 		saveChunkedForm: function( chunks, currentIndex, currentChunk, jsAction, action ) {
 			var total_chunks = chunks.length;
 			var postObj = {
@@ -277,13 +283,20 @@ define( [], function() {
 					try {
 						var res = JSON.parse(response);
 						if (res.data.got_it) {
-							console.log('Chunk ' + currentChunk + 'processed');
+							console.log('Chunk ' + currentChunk + ' processed');
+							// new index for next chunk
 							currentIndex = currentIndex + 1;
+							// new chunk number
 							currentChunk = currentChunk + 1;
 
-							if (currentChunk <= chunks.length) {
+							if (currentIndex < chunks.length) {
+								// send the next chunk
 								that.saveChunkedForm(chunks, currentIndex, currentChunk, jsAction);
 							} else {
+								/**
+								 * We need to respond with data to make the
+								 * publish button return to gray
+ 								 */
 								that.handleFinalResponse(response, action);
 							}
 
@@ -304,7 +317,7 @@ define( [], function() {
 			try {
 				response = JSON.parse( response );
 				response.action = action;
-				console.log(response);
+
 				// Run anything that needs to happen after we update.
 				nfRadio.channel( 'app' ).trigger( 'response:updateDB', response );
 				if ( ! nfRadio.channel( 'app' ).request( 'is:mobile' ) && 'preview' == action ) {
