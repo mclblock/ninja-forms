@@ -4,15 +4,12 @@ class NF_AJAX_Controllers_Form extends NF_Abstracts_Controller
 {
     private $publish_processing;
 
-//	// use the smaller size for testing.
-//	const CHUNK_SIZE  = 1000; // MySQL TEXT Type
-////	    const CHUNK_SIZE  = 65535; // MySQL TEXT Type
-
     public function __construct()
     {
         add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
 
         add_action( 'wp_ajax_nf_save_form',   array( $this, 'save' )   );
+        add_action( 'wp_ajax_nf_batch_process', array( $this, 'batch_process' ) );
         add_action( 'wp_ajax_nf_delete_form', array( $this, 'delete' ) );
     }
 
@@ -145,5 +142,20 @@ class NF_AJAX_Controllers_Form extends NF_Abstracts_Controller
         check_ajax_referer( 'ninja_forms_builder_nonce', 'security' );
 
         $this->_respond();
+    }
+
+    public function batch_process() {
+	    check_ajax_referer( 'ninja_forms_builder_nonce', 'security' );
+
+	    if( ! isset( $_POST[ 'data' ] ) ){
+		    $this->_errors[] = __( 'Data Not Found', 'ninja-forms' );
+		    $this->_respond();
+	    }
+
+//	    $req_data = json_decode( $_POST['data'], ARRAY_A );
+
+	    $this->_data[ 'got_it' ] = true;
+
+	    $this->_respond();
     }
 }

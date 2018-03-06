@@ -8,6 +8,7 @@
  */
 define( [], function() {
 	var controller = Marionette.Object.extend( {
+
 		initialize: function() {
 			// Listen for the closing of the drawer and update when it's closed.
 			this.listenTo( nfRadio.channel( 'drawer' ), 'closed', this.updateDB );
@@ -29,6 +30,9 @@ define( [], function() {
 		 * @return void
 		 */
 		updateDB: function( action ) {
+			// if the form string is long than this, chunk it
+			var chunk_size = 8192;
+
 			// If our app is clean, dont' update.
 			if ( nfRadio.channel( 'app' ).request( 'get:setting', 'clean' ) ) {
 				return false;
@@ -41,7 +45,8 @@ define( [], function() {
 			if ( 'preview' == action ) {
 				var jsAction = 'nf_preview_update';
 			} else if ( 'publish' == action ) {
-				var jsAction = 'nf_save_form';
+				// var jsAction = 'nf_save_form';
+				var jsAction = 'nf_batch_process';
 			}
 
 			var formModel = nfRadio.channel( 'app' ).request( 'get:formModel' );
@@ -205,6 +210,13 @@ define( [], function() {
 
 			// Turn our object into a JSON string.
 			data = JSON.stringify( data );
+
+			var data_chunks = [];
+
+			if( chunk_size < data.length ) {
+				data_chunks = data.match(new RegExp('.{1,' + chunk_size + '}', 'g'));
+			}
+
 			// Run anything that needs to happen before we update.
 			nfRadio.channel( 'app' ).trigger( 'before:updateDB', data );
 
@@ -218,31 +230,100 @@ define( [], function() {
 				}
 			}
 
-			// Update
-			jQuery.post( ajaxurl, { action: jsAction, form: data, security: nfAdmin.ajaxNonce }, function( response ) {
-				try {
-					response = JSON.parse( response );
-					response.action = action;
-					// Run anything that needs to happen after we update.
-					nfRadio.channel( 'app' ).trigger( 'response:updateDB', response );
-					if ( ! nfRadio.channel( 'app' ).request( 'is:mobile' ) && 'preview' == action ) {
-						// nfRadio.channel( 'notices' ).request( 'add', 'previewUpdate', 'Preview Updated'	);
+			var postObj = {};
+			var total_chunks = 0;
+			var current_chunk_index = 0;
+
+			if ( 'nf_batch_process' === jsAction ) {
+
+				this.saveChunkedForm( data_chunks, 0, 1, jsAction, action );
+
+			} else if ( 'nf_preview_update' === jsAction ) {
+				postObj = {
+					action: jsAction,
+					form: data,
+					security: nfAdmin.ajaxNonce
+				};
+				var context = this;
+				var responseData = null;
+				jQuery.post( ajaxurl,
+					postObj,
+					function( response ) {
+						responseData = response;
+						context.handleFinalResponse( responseData, action );
 					}
-				} catch( exception ) {
-					console.log( 'Something went wrong!' );
-					console.log( exception );
+				).fail( function( xhr, status, error ) {
+					context.handleFinalFailure( xhr, status, error, action )
+				} );
+			}
+		},
+
+		saveChunkedForm: function( chunks, currentIndex, currentChunk, jsAction, action ) {
+			var total_chunks = chunks.length;
+			var postObj = {
+				action: jsAction,
+				batch_type: 'chunked_publish',
+				data: {
+					chunk_total: total_chunks,
+					chunk_current: currentChunk,
+					chunk: chunks[ currentIndex ]
+				},
+				security: nfAdmin.ajaxNonce
+			};
+
+			var that = this;
+			jQuery.post( ajaxurl, postObj )
+				.then( function ( response ) {
+					try {
+						var res = JSON.parse(response);
+						if (res.data.got_it) {
+							console.log('Chunk ' + currentChunk + 'processed');
+							currentIndex = currentIndex + 1;
+							currentChunk = currentChunk + 1;
+
+							if (currentChunk <= chunks.length) {
+								that.saveChunkedForm(chunks, currentIndex, currentChunk, jsAction);
+							} else {
+								that.handleFinalResponse(response, action);
+							}
+
+						}
+					} catch ( exception ) {
+						console.log( 'There was an error in parsing the' +
+							' response');
+						console.log( exception );
+					}
 				}
-				
-			} ).fail( function( xhr, status, error ) {
-				console.log( action );
-				// For previews, only log to the console.
-                if( 'preview' == action ) {
-                    console.log( error );
-                    return;
-                }
-                // @todo Convert alert to jBox Modal.
-				alert(xhr.status + ' ' + error + '\r\n' + 'An error on the server caused your form not to publish.\r\nPlease contact Ninja Forms Support with your PHP Error Logs.\r\nhttps://ninjaforms.com/contact');
-			});
+				).fail( function( xhr, status, error ) {
+					console.log( 'There was an error sending form data' );
+					console.log( error );
+				});
+		},
+
+		handleFinalResponse: function( response, action ) {
+			try {
+				response = JSON.parse( response );
+				response.action = action;
+				console.log(response);
+				// Run anything that needs to happen after we update.
+				nfRadio.channel( 'app' ).trigger( 'response:updateDB', response );
+				if ( ! nfRadio.channel( 'app' ).request( 'is:mobile' ) && 'preview' == action ) {
+					// nfRadio.channel( 'notices' ).request( 'add', 'previewUpdate', 'Preview Updated'	);
+				}
+			} catch( exception ) {
+				console.log( 'Something went wrong!' );
+				console.log( exception );
+			}
+		},
+
+		handleFinalFailure: function( xhr, status, error, action ) {
+			// For previews, only log to the console.
+			if( 'preview' == action ) {
+				console.log( error );
+				return;
+			}
+			// @todo Convert alert to jBox Modal.
+			alert(xhr.status + ' ' + error + '\r\n' + 'An error on the server caused your form not to publish.\r\nPlease contact Ninja Forms Support with your PHP Error Logs.\r\nhttps://ninjaforms.com/contact');
 		},
 
 		defaultSaveFilter: function( formContentData ) {

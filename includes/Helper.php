@@ -11,7 +11,7 @@ final class WPN_Helper
 {
 
 	// use the smaller size for testing.
-	const CHUNK_SIZE  = 1000; // MySQL TEXT Type
+	const CHUNK_SIZE  = 8192; // Arbitrary size until we decide
 //	    const CHUNK_SIZE  = 65535; // MySQL TEXT Type
 
     /**
