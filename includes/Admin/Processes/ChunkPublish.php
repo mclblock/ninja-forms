@@ -114,7 +114,7 @@ class NF_Admin_Processes_ChunkPublish extends NF_Abstracts_BatchProcess
         } // Otherwise... (If we don't already have one.)
         else {
             // Create it.
-            add_option( 'nf_form_' . $this->form_id, $build, '', 'no' );
+            add_option( 'nf_form_' . $this->form_id . '_chunks', $build, '', 'no' );
         }
         // Remove our option to manage the process.
         delete_option( 'nf_chunk_publish_' . $this->form_id );
