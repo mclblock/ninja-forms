@@ -235,7 +235,13 @@ define( [], function() {
 
 				console.log(data_chunks);
 				// this function will make the ajax call for chunks
-				this.saveChunkedForm( data_chunks, 0, 1, jsAction, action );
+				this.saveChunkedForm(
+					data_chunks,
+					0,
+					jsAction,
+					action,
+					formModel.get( 'id' )
+				);
 
 			} else if ( 'nf_preview_update' === jsAction ) {
 				var context = this;
@@ -264,7 +270,7 @@ define( [], function() {
 		 * @param jsAction
 		 * @param action
 		 */
-		saveChunkedForm: function( chunks, currentIndex, currentChunk, jsAction, action ) {
+		saveChunkedForm: function( chunks, currentChunk, jsAction, action, formId ) {
 			var total_chunks = chunks.length;
 			var postObj = {
 				action: jsAction,
@@ -272,7 +278,8 @@ define( [], function() {
 				data: {
 					chunk_total: total_chunks,
 					chunk_current: currentChunk,
-					chunk: chunks[ currentIndex ]
+					chunk: chunks[ currentChunk ],
+					form_id: formId
 				},
 				security: nfAdmin.ajaxNonce
 			};
@@ -282,24 +289,17 @@ define( [], function() {
 				.then( function ( response ) {
 					try {
 						var res = JSON.parse(response);
-						if (res.data.got_it) {
+						if ( 'success' === res.last_request && ! res.batch_complete) {
 							console.log('Chunk ' + currentChunk + ' processed');
-							// new index for next chunk
-							currentIndex = currentIndex + 1;
-							// new chunk number
-							currentChunk = currentChunk + 1;
 
-							if (currentIndex < chunks.length) {
-								// send the next chunk
-								that.saveChunkedForm(chunks, currentIndex, currentChunk, jsAction);
-							} else {
-								/**
-								 * We need to respond with data to make the
-								 * publish button return to gray
- 								 */
-								that.handleFinalResponse(response, action);
-							}
-
+							// send the next chunk
+							that.saveChunkedForm(chunks, res.requesting, currentChunk, jsAction);
+						} else if ( res.batch_complete ) {
+							/**
+							 * We need to respond with data to make the
+							 * publish button return to gray
+                             */
+							that.handleFinalResponse(response, action);
 						}
 					} catch ( exception ) {
 						console.log( 'There was an error in parsing the' +

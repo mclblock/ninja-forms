@@ -29,6 +29,7 @@ class NF_AJAX_REST_Batch_Process extends NF_AJAX_REST_Controller
             // Route the request to the proper controller.
             switch ( $batch_type ) {
                 case 'chunked_publish':
+	                $batch = new NF_Admin_Processes_ChunkPublish();
                     break;
                 case 'delete_submissions':
                     break;
