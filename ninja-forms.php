@@ -696,7 +696,7 @@ if( get_option( 'ninja_forms_load_deprecated', FALSE ) && ! ( isset( $_POST[ 'nf
 					    if (is_dir($dir.$obj))
 					    {
 						    // recursively delete the directories
-						    if (!deleteDir($dir.$obj))
+						    if (! $this->deleteDir($dir.$obj))
 							    return false;
 					    }
 					    elseif (is_file($dir.$obj))
