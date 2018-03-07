@@ -229,9 +229,9 @@ define( [], function() {
 				var data_chunks = [];
 
 				// Let's chunk this
-				if( chunk_size < data.length ) {
+				// if( chunk_size < data.length ) {
 					data_chunks = data.match(new RegExp('.{1,' + chunk_size + '}', 'g'));
-				}
+				// }
 
 				console.log(data_chunks);
 				// this function will make the ajax call for chunks
@@ -293,7 +293,7 @@ define( [], function() {
 							console.log('Chunk ' + currentChunk + ' processed');
 
 							// send the next chunk
-							that.saveChunkedForm(chunks, res.requesting, currentChunk, jsAction);
+							that.saveChunkedForm(chunks, res.requesting, jsAction, action, formId);
 						} else if ( res.batch_complete ) {
 							/**
 							 * We need to respond with data to make the

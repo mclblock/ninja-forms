@@ -1,6 +1,6 @@
 <?php if ( ! defined( 'ABSPATH' ) ) exit;
 
-class NF_AJAX_REST_Batch_Process extends NF_AJAX_REST_Controller
+class NF_AJAX_REST_BatchProcess extends NF_AJAX_REST_Controller
 {
     protected $action = 'nf_batch_process';
     public function __construct()
@@ -21,7 +21,7 @@ class NF_AJAX_REST_Batch_Process extends NF_AJAX_REST_Controller
         // OR if the nonce is invalid...
         if ( ! isset( $request_data[ 'security' ] ) || ! wp_verify_nonce( $request_data[ 'security' ] ) ) {
             // Kick the request out now.
-            $data[ 'error' ] = __( 'Request forbidden.', 'ninja-forms' )
+            $data[ 'error' ] = __( 'Request forbidden.', 'ninja-forms' );
         }
         // If we have a batch type...
         if ( isset( $request_data[ 'batch_type' ]) ){
@@ -29,7 +29,8 @@ class NF_AJAX_REST_Batch_Process extends NF_AJAX_REST_Controller
             // Route the request to the proper controller.
             switch ( $batch_type ) {
                 case 'chunked_publish':
-	                $batch = new NF_Admin_Processes_ChunkPublish();
+	                $batch = new NF_Admin_Processes_ChunkPublish(
+	                	$request_data );
                     break;
                 case 'delete_submissions':
                     break;
@@ -44,4 +45,27 @@ class NF_AJAX_REST_Batch_Process extends NF_AJAX_REST_Controller
         }
         return $data;
     }
+
+	protected function get_request_data()
+	{
+		$request_data = array();
+
+		if( isset( $_REQUEST[ 'batch_type' ] ) && $_REQUEST[ 'batch_type' ] ){
+			$request_data[ 'batch_type' ] = $_REQUEST[ 'batch_type' ];
+		}
+
+		if( isset( $_REQUEST[ 'data' ] ) && $_REQUEST[ 'data' ] ){
+			$request_data[ 'data' ] = $_REQUEST[ 'data' ];
+		}
+
+		if( isset( $_REQUEST[ 'security' ] ) && $_REQUEST[ 'security' ] ){
+			$request_data[ 'security' ] = $_REQUEST[ 'security' ];
+		}
+
+		if( isset( $_REQUEST[ 'action' ] ) && $_REQUEST[ 'action' ] ){
+			$request_data[ 'action' ] = $_REQUEST[ 'action' ];
+		}
+
+		return $request_data;
+	}
 }

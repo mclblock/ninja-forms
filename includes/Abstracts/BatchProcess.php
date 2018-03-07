@@ -3,7 +3,7 @@
 /**
  * Class NF_Abstracts_Batch_Process
  */
-abstract class NF_Abstracts_Batch_Process
+abstract class NF_Abstracts_BatchProcess
 {
 
     /**

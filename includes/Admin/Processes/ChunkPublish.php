@@ -3,16 +3,17 @@
 /**
  * Class NF_Abstracts_Batch_Process
  */
-class NF_Admin_Processes_ChunkPublish extends NF_Abstracts_Batch_Process
+class NF_Admin_Processes_ChunkPublish extends NF_Abstracts_BatchProcess
 {
+//	header( 'Content-Type: application/json' );
     private $data;
     private $form_id;
     private $response = array(
-        'last_request' => 'failure',
-        'batch_complete' => false
+    	'last_request' => 'failure',
+        'batch_complete' => false,
     );
 
-    header( 'Content-Type: application/json' );
+
 
     /**
      * Constructor
@@ -23,7 +24,7 @@ class NF_Admin_Processes_ChunkPublish extends NF_Abstracts_Batch_Process
         if ( ! is_admin() )
             return false;
         // Record our data if we have any.
-        $this->data = $data;
+        $this->data = $data[ 'data' ];
         $this->form_id = $this->data[ 'form_id' ];
         // Run process.
         $this->process();
@@ -72,7 +73,7 @@ class NF_Admin_Processes_ChunkPublish extends NF_Abstracts_Batch_Process
             // Request our next chunk.
             $this->response[ 'requesting' ] = $batch[ 0 ];
         }
-        $this->respones[ 'last_request' ] = 'success';
+        $this->response[ 'last_request' ] = 'success';
         echo wp_json_encode( $this->response );
         wp_die();
     }
