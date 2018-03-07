@@ -9,7 +9,7 @@ abstract class NF_Abstracts_Batch_Process
     /**
      * Constructor
      */
-    public function __construct()
+    public function __construct( $data = array() )
     {
         //Bail if we aren't in the admin.
         if ( ! is_admin() )
