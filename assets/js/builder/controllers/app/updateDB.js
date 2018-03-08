@@ -43,9 +43,9 @@ define( [], function() {
 			if ( 'preview' == action ) {
 				var jsAction = 'nf_preview_update';
 			} else if ( 'publish' == action ) {
-				// var jsAction = 'nf_save_form';
+				var jsAction = 'nf_save_form';
 				// now using a different ajax action
-				var jsAction = 'nf_batch_process';
+				// var jsAction = 'nf_batch_process';
 			}
 
 			var formModel = nfRadio.channel( 'app' ).request( 'get:formModel' );
@@ -223,26 +223,44 @@ define( [], function() {
 				}
 			}
 
-			if ( 'nf_batch_process' === jsAction ) {
+			if ( 'nf_save_form' === jsAction ) {
 				// if the form string is long than this, chunk it
-				var chunk_size = 8192;
+				var chunk_size = 100000;
 				var data_chunks = [];
 
 				// Let's chunk this
-				// if( chunk_size < data.length ) {
+				if( chunk_size < data.length ) {
 					data_chunks = data.match(new RegExp('.{1,' + chunk_size + '}', 'g'));
-				// }
+				}
+				// if we have chunks send them via the step processor
+				if( 1 < data_chunks.length ) {
+					// this function will make the ajax call for chunks
+					this.saveChunkedForm(
+						data_chunks,
+						0,
+						'nf_batch_process',
+						action,
+						formModel.get('id')
+					);
+				} else {
+					// otherwise send it the regular way.
+					var context = this;
+					var responseData = null;
 
-				console.log(data_chunks);
-				// this function will make the ajax call for chunks
-				this.saveChunkedForm(
-					data_chunks,
-					0,
-					jsAction,
-					action,
-					formModel.get( 'id' )
-				);
-
+					jQuery.post( ajaxurl,
+						{
+							action: jsAction,
+							form: data,
+							security: nfAdmin.ajaxNonce
+						},
+						function( response ) {
+							responseData = response;
+							context.handleFinalResponse( responseData, action );
+						}
+					).fail( function( xhr, status, error ) {
+						context.handleFinalFailure( xhr, status, error, action )
+					} );
+				}
 			} else if ( 'nf_preview_update' === jsAction ) {
 				var context = this;
 				var responseData = null;
