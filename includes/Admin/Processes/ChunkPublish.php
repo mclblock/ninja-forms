@@ -12,6 +12,9 @@ class NF_Admin_Processes_ChunkPublish extends NF_Abstracts_BatchProcess
     	'last_request' => 'failure',
         'batch_complete' => false,
     );
+    protected $_data = array();
+    protected $_errors = array();
+    protected $_debug = array();
 
 
 
@@ -52,13 +55,13 @@ class NF_Admin_Processes_ChunkPublish extends NF_Abstracts_BatchProcess
         }
         $batch = explode( ',', $batch );
         // If we already have a chunk for this step...
-        if ( get_option( 'nf_form_' . $this->form_id . '_' . $batch[ 0 ] ) ) {
+        if ( get_option( 'nf_form_' . $this->form_id . '_publishing_' . $batch[ 0 ] ) ) {
             // Update it.
-            update_option( 'nf_form_' . $this->form_id . '_' . $batch[ 0 ], $this->data[ 'chunk' ] );
+            update_option( 'nf_form_' . $this->form_id . '_publishing_' . $batch[ 0 ], stripslashes( $this->data[ 'chunk' ] ) );
         } // Otherwise... (No chunk was found.)
         else {
             // Add it.
-            add_option( 'nf_form_' . $this->form_id . '_' . $batch[ 0 ], $this->data[ 'chunk' ], '', 'no' );
+            add_option( 'nf_form_' . $this->form_id . '_publishing_' . $batch[ 0 ], stripslashes( $this->data[ 'chunk' ] ), '', 'no' );
         }
         // Increment our step.
         $batch[ 0 ]++;
@@ -97,28 +100,179 @@ class NF_Admin_Processes_ChunkPublish extends NF_Abstracts_BatchProcess
      */
     public function cleanup()
     {
-        // Update the chunked cache option.
-        $build = array();
+        
+        // Get all of the chunks.
+        
+        
+        $build = '';
         $batch = get_option( 'nf_chunk_publish_' . $this->form_id );
         $batch = explode( ',', $batch );
-        // Add all of our chunks onto an array.
+        // Add all of our chunks into a string.
         for ( $i = 0; $i < $batch[ 1 ]; $i++ ) {
-            $build[] = 'nf_form_' . $this->form_id . '_' . $i;
+            $build .= get_option( 'nf_form_' . $this->form_id . '_publishing_' . $i );
         }
-        // Convert them to a string.
-        $build = implode( ',', $build );
-        // If we already have a chunked option...
-        if ( get_option( 'nf_form_' . $this->form_id . '_chunks' ) ) {
-            // Update it.
-            update_option( 'nf_form_' . $this->form_id . '_chunks', $build );
-        } // Otherwise... (If we don't already have one.)
-        else {
-            // Create it.
-            add_option( 'nf_form_' . $this->form_id . '_chunks', $build, '', 'no' );
+
+        $form_data = json_decode( $build, ARRAY_A );
+        // Start copied code.
+        if( is_string( $form_data[ 'id' ] ) ) {
+            $tmp_id = $form_data[ 'id' ];
+            $form = Ninja_Forms()->form()->get();
+            $form->save();
+            $form_data[ 'id' ] = $form->get_id();
+            $this->_data[ 'new_ids' ][ 'forms' ][ $tmp_id ] = $form_data[ 'id' ];
+        } else {
+            $form = Ninja_Forms()->form($form_data['id'])->get();
         }
+	    add_filter( 'pre_option_nf_form_' . $form->get_id(),
+		    'WPN_Helper::pre_option', 10, 1 );
+	    add_filter( 'pre_update_option_nf_form_' . $form->get_id(),
+		    'WPN_Helper::pre_update_option', 10, 2 );
+
+        unset( $form_data[ 'settings' ][ '_seq_num' ] );
+
+        $form->update_settings( $form_data[ 'settings' ] )->save();
+
+        if( isset( $form_data[ 'fields' ] ) ) {
+            $db_fields_controller = new NF_Database_FieldsController( $form_data[ 'id' ], $form_data[ 'fields' ] );
+            $db_fields_controller->run();
+            $form_data[ 'fields' ] = $db_fields_controller->get_updated_fields_data();
+            $this->_data['new_ids']['fields'] = $db_fields_controller->get_new_field_ids();
+        }
+
+        if( isset( $form_data[ 'deleted_fields' ] ) ){
+
+            foreach( $form_data[ 'deleted_fields' ] as  $deleted_field_id ){
+
+                $field = Ninja_Forms()->form( $form_data[ 'id' ])->get_field( $deleted_field_id );
+                $field->delete();
+            }
+        }
+
+        if( isset( $form_data[ 'actions' ] ) ) {
+
+            /*
+             * Loop Actions and fire Save() hooks.
+             */
+            foreach ($form_data['actions'] as &$action_data) {
+
+                $id = $action_data['id'];
+
+                $action = Ninja_Forms()->form( $form_data[ 'id' ] )->get_action( $id );
+
+                $action->update_settings($action_data['settings'])->save();
+
+                $action_type = $action->get_setting( 'type' );
+
+                if( isset( Ninja_Forms()->actions[ $action_type ] ) ) {
+                    $action_class = Ninja_Forms()->actions[ $action_type ];
+
+                    $action_settings = $action_class->save( $action_data['settings'] );
+                    if( $action_settings ){
+                        $action_data['settings'] = $action_settings;
+                        $action->update_settings( $action_settings )->save();
+                    }
+                }
+
+                if ($action->get_tmp_id()) {
+
+                    $tmp_id = $action->get_tmp_id();
+                    $this->_data['new_ids']['actions'][$tmp_id] = $action->get_id();
+                    $action_data[ 'id' ] = $action->get_id();
+                }
+
+                $this->_data[ 'actions' ][ $action->get_id() ] = $action->get_settings();
+            }
+        }
+
+        /*
+         * Loop Actions and fire Publish() hooks.
+         */
+        foreach ($form_data['actions'] as &$action_data) {
+
+            $action = Ninja_Forms()->form( $form_data[ 'id' ] )->get_action( $action_data['id'] );
+
+            $action_type = $action->get_setting( 'type' );
+
+            if( isset( Ninja_Forms()->actions[ $action_type ] ) ) {
+                $action_class = Ninja_Forms()->actions[ $action_type ];
+
+                if( $action->get_setting( 'active' ) && method_exists( $action_class, 'publish' ) ) {
+                    $data = $action_class->publish( $this->_data );
+                    if ($data) {
+                        $this->_data = $data;
+                    }
+                }
+            }
+        }
+
+        if( isset( $form_data[ 'deleted_actions' ] ) ){
+
+            foreach( $form_data[ 'deleted_actions' ] as  $deleted_action_id ){
+
+                $action = Ninja_Forms()->form()->get_action( $deleted_action_id );
+                $action->delete();
+            }
+        }
+
+        delete_user_option( get_current_user_id(), 'nf_form_preview_' . $form_data['id'] );
+        update_option( 'nf_form_' . $form_data[ 'id' ], $form_data );
+
+        do_action( 'ninja_forms_save_form', $form->get_id() );
+
+        if( isset( $this->_data['debug'] ) ) {
+            $this->_debug = array_merge( $this->_debug, $this->_data[ 'debug' ] );
+        }
+
+        if( isset( $this->_data['errors'] ) && $this->_data[ 'errors' ] ) {
+            $this->_errors = array_merge( $this->_errors, $this->_data[ 'errors' ] );
+        }
+        
         // Remove our option to manage the process.
         delete_option( 'nf_chunk_publish_' . $this->form_id );
-        $this->response[ 'batch_complete' ] = true;
+        // If our form_id was a temp id...
+        if ( ! is_numeric( $this->form_id ) ) {
+            // Remove all of our chunk options.
+            global $wpdb;
+            $sql = "DELETE FROM `" . $wpdb->prefix . "options` WHERE option_name LIKE 'nf_form_" . $this->form_id . "_publishing_%'";
+            $wpdb->query( $sql );
+        }
+
+        $response = array( 'data' => $this->_data, 'errors' => $this->_errors, 'debug' => $this->_debug, 'batch_complete' => true );
+
+        echo wp_json_encode( $response );
+
+        wp_die(); // this is required to terminate immediately and return a proper response
+        
+        /**************************************************************
+         * Start old data.
+         **************************************************************
+         */
+//        // Update the chunked cache option.
+//        $build = array();
+//        $batch = get_option( 'nf_chunk_publish_' . $this->form_id );
+//        $batch = explode( ',', $batch );
+//        // Add all of our chunks onto an array.
+//        for ( $i = 0; $i < $batch[ 1 ]; $i++ ) {
+//            $build[] = 'nf_form_' . $this->form_id . '_' . $i;
+//        }
+//        // Convert them to a string.
+//        $build = implode( ',', $build );
+//        // If we already have a chunked option...
+//        if ( get_option( 'nf_form_' . $this->form_id . '_chunks' ) ) {
+//            // Update it.
+//            update_option( 'nf_form_' . $this->form_id . '_chunks', $build );
+//        } // Otherwise... (If we don't already have one.)
+//        else {
+//            // Create it.
+//            add_option( 'nf_form_' . $this->form_id . '_chunks', $build, '', 'no' );
+//        }
+//        // Remove our option to manage the process.
+//        delete_option( 'nf_chunk_publish_' . $this->form_id );
+//        $this->response[ 'batch_complete' ] = true;
+        /**************************************************************
+         * End old data.
+         **************************************************************
+         */
     }
 
 }
