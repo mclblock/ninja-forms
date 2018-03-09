@@ -1,5 +1,5 @@
 jQuery(document).ready(function($) {
-	var message, container, messageBox, deleteInput, buttons, confirm, cancel, lineBreak;
+	var message, container, messageBox, deleteInput, deleteMsgs, buttons, confirm, cancel, lineBreak;
 	container = document.createElement( 'div' );
 	messageBox = document.createElement( 'p' );
 	deleteInput = document.createElement( 'input' );
@@ -39,6 +39,9 @@ jQuery(document).ready(function($) {
 	container.appendChild( messageBox );
 	container.appendChild( deleteInput );
 	container.appendChild( lineBreak );
+	deleteMsgs = document.createElement( 'div' );
+	deleteMsgs.style.display = 'none';
+	deleteMsgs.style.color = 'red';
 	confirm.innerHTML = 'Delete';
 	confirm.classList.add( 'confirm', 'nf-button', 'primary' );
 	confirm.style.float = 'left';
@@ -52,33 +55,37 @@ jQuery(document).ready(function($) {
 	message = document.createElement( 'div' );
 	message.appendChild( container );
 
-	deleteAllDataModel = new jBox( 'Modal', {
+	deleteAllDataModal = new jBox( 'Modal', {
 		width: 450,
 		addClass: 'dashboard-modal',
 		overlay: true,
 		closeOnClick: 'body'
 	} );
 
-	deleteAllDataModel.setContent( message.innerHTML );
-	deleteAllDataModel.setTitle( 'Delete All Ninja Forms Data?' );
+	deleteAllDataModal.setContent( message.innerHTML );
+	deleteAllDataModal.setTitle( 'Delete All Ninja Forms Data?' );
 
-	var btnCancel = deleteAllDataModel.container[0].getElementsByClassName('cancel')[0];
+	var btnCancel = deleteAllDataModal.container[0].getElementsByClassName('cancel')[0];
 	btnCancel.addEventListener('click', function() {
-		deleteAllDataModel.close();
+		deleteAllDataModal.close();
 	} );
 
 	var startDeletions = function() {
-		console.log('do it');
+		$.post(ajaxurl,
+			{
+
+			}
+		);
 	};
 
-	var btnDelete = deleteAllDataModel.container[0].getElementsByClassName('confirm')[0];
+	var btnDelete = deleteAllDataModal.container[0].getElementsByClassName('confirm')[0];
 	btnDelete.addEventListener('click', function() {
 		var confirmVal = $( '#confirmDeleteInput' ).val();
 
 		if ( 'DELETE' === confirmVal ) {
 			startDeletions();
 		} else {
-			deleteAllDataModel.close();
+			deleteAllDataModal.close();
 		}
 	} );
 
@@ -109,7 +116,7 @@ jQuery(document).ready(function($) {
 
 
 	$( document ).on( 'click', '#delete_on_uninstall', function( e ) {
-		deleteAllDataModel.open();
+		deleteAllDataModal.open();
 	} );
 
 	$( document ).on( 'click', '.nf-delete-on-uninstall-yes', function( e ) {
