@@ -240,7 +240,8 @@ define( [], function() {
 						0,
 						'nf_batch_process',
 						action,
-						formModel.get('id')
+						formModel.get('id'),
+						true
 					);
 				} else {
 					// otherwise send it the regular way.
@@ -288,12 +289,13 @@ define( [], function() {
 		 * @param jsAction
 		 * @param action
 		 */
-		saveChunkedForm: function( chunks, currentChunk, jsAction, action, formId ) {
+		saveChunkedForm: function( chunks, currentChunk, jsAction, action, formId, new_publish ) {
 			var total_chunks = chunks.length;
 			var postObj = {
 				action: jsAction,
 				batch_type: 'chunked_publish',
 				data: {
+					new_publish: new_publish,
 					chunk_total: total_chunks,
 					chunk_current: currentChunk,
 					chunk: chunks[ currentChunk ],
@@ -311,7 +313,7 @@ define( [], function() {
 							console.log('Chunk ' + currentChunk + ' processed');
 
 							// send the next chunk
-							that.saveChunkedForm(chunks, res.requesting, jsAction, action, formId);
+							that.saveChunkedForm(chunks, res.requesting, jsAction, action, formId, false);
 						} else if ( res.batch_complete ) {
 							/**
 							 * We need to respond with data to make the
