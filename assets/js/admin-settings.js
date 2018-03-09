@@ -1,4 +1,5 @@
 jQuery(document).ready(function($) {
+	var working = false;
 	var message, container, messageBox, deleteInput, deleteMsgs, buttons, confirm, cancel, lineBreak;
 	container = document.createElement( 'div' );
 	messageBox = document.createElement( 'p' );
@@ -67,25 +68,49 @@ jQuery(document).ready(function($) {
 
 	var btnCancel = deleteAllDataModal.container[0].getElementsByClassName('cancel')[0];
 	btnCancel.addEventListener('click', function() {
-		deleteAllDataModal.close();
+		if( ! working ) {
+			deleteAllDataModal.close();
+		}
 	} );
 
-	var startDeletions = function() {
-		$.post(ajaxurl,
+	var doAllDataDeletions = function( formIndex ) {
+	    console.log( nf_settings.forms );
+	    // $( '#' ).html( 'Deleting the first form' );
+		$.post(
+			nf_settings.ajax_url,
 			{
-
+				'action': 'nf_delete_all_data',
+				'form': nf_settings.forms[ formIndex ].id,
+				'security': nf_settings.nonce
 			}
-		);
+		).then (function( response ) {
+			formIndex = formIndex + 1;
+			response = JSON.parse( response );
+			console.log( response );
+			if( response.data.success ) {
+				if( formIndex < nf_settings.forms.length ) {
+					console.log ( response.data.success );
+					doAllDataDeletions( formIndex )
+				}
+			}
+		} ).fail( function( ) {
+
+		});
 	};
 
 	var btnDelete = deleteAllDataModal.container[0].getElementsByClassName('confirm')[0];
-	btnDelete.addEventListener('click', function() {
-		var confirmVal = $( '#confirmDeleteInput' ).val();
 
-		if ( 'DELETE' === confirmVal ) {
-			startDeletions();
-		} else {
-			deleteAllDataModal.close();
+	btnDelete.addEventListener('click', function() {
+		var confirmVal = $('#confirmDeleteInput').val();
+
+		if (! working) {
+			working = true;
+			if ('DELETE' === confirmVal) {
+				doAllDataDeletions(0);
+			} else {
+				deleteAllDataModal.close();
+				working = false;
+			}
 		}
 	} );
 
