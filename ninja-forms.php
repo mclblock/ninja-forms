@@ -439,18 +439,6 @@ if( get_option( 'ninja_forms_load_deprecated', FALSE ) && ! ( isset( $_POST[ 'nf
              */
             self::$instance->merge_tags = apply_filters( 'ninja_forms_register_merge_tags', self::$instance->merge_tags );
 
-	        /**
-	         * this code will set up pre_option and pre_update filter for the
-	         * large cache fix
-	         **/
-	        foreach( Ninja_Forms()->form()->get_forms() as $form ){
-//		        if( ! get_option( 'nf_form_' . $form->get_id() . '_chunks', false ) ) continue;
-		        add_filter( 'pre_option_nf_form_' . $form->get_id(),
-			        'WPN_Helper::pre_option', 10, 1 );
-		        add_filter( 'pre_update_option_nf_form_' . $form->get_id(),
-			        'WPN_Helper::pre_update_option', 10, 2 );
-	        }
-
             /*
              * It's Ninja Time: Hook for Extensions
              */

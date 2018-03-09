@@ -123,10 +123,6 @@ class NF_Admin_Processes_ChunkPublish extends NF_Abstracts_BatchProcess
         } else {
             $form = Ninja_Forms()->form($form_data['id'])->get();
         }
-	    add_filter( 'pre_option_nf_form_' . $form->get_id(),
-		    'WPN_Helper::pre_option', 10, 1 );
-	    add_filter( 'pre_update_option_nf_form_' . $form->get_id(),
-		    'WPN_Helper::pre_update_option', 10, 2 );
 
         unset( $form_data[ 'settings' ][ '_seq_num' ] );
 

@@ -37,16 +37,6 @@ class NF_AJAX_Controllers_Form extends NF_Abstracts_Controller
         } else {
             $form = Ninja_Forms()->form($form_data['id'])->get();
         }
-		// if we've had chunked cache in the past, remove the reference
-        if( get_option( 'nf_form_' . $form->get_id() . '_chunks', false ) ) {
-        	delete_option( 'nf_form_' . $form->get_id() . '_chunks' );
-        }
-
-        // attach filters that might enable chunking if needed.
-	    add_filter( 'pre_option_nf_form_' . $form->get_id(),
-		    'WPN_Helper::pre_option', 10, 1 );
-	    add_filter( 'pre_update_option_nf_form_' . $form->get_id(),
-		    'WPN_Helper::pre_update_option', 10, 2 );
 
         unset( $form_data[ 'settings' ][ '_seq_num' ] );
 

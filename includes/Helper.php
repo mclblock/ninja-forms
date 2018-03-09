@@ -10,10 +10,6 @@
 final class WPN_Helper
 {
 
-	// use the smaller size for testing.
-	const CHUNK_SIZE  = 100000; // Arbitrary size until we decide
-//	    const CHUNK_SIZE  = 65535; // MySQL TEXT Type
-
     /**
      * @param $value
      * @return array|string
@@ -271,48 +267,5 @@ final class WPN_Helper
             return 's:'.strlen($matches[2]).':"'.$matches[2].'";';
         }
     }
-
-	public static function pre_option( $value )
-	{
-		$filter = str_replace( 'pre_option_', '', current_filter() );
-		$flag = $filter . '_chunks';
-		// if there is no nf_form_x_chunks option, we have not chunked
-		// this for, carry on
-		if( ! get_option( $flag ) ) return $value;
-		$new_value = '';
-		// if we have chunk'd it, get the list of chunks
-		$options = explode( ',', get_option( $flag ) );
-
-		//get the option value of each chunk and concat them into the form
-		foreach( $options as $option ){
-			$new_value .= get_option( $option );
-		}
-		return maybe_unserialize( $new_value );
-	}
-
-	public static function pre_update_option( $new_value, $old_value )
-	{
-		if( is_array( $new_value ) ){
-			$tmp_new_value = maybe_serialize( $new_value );
-		}
-		// if serialized form length is less than chunk size, then carry on
-		if ( self::CHUNK_SIZE > strlen($tmp_new_value) ) return $new_value;
-		// otherwise, get the name of the option we want to set
-		$filter = str_replace( 'pre_update_option_', '', current_filter() );
-		$new_options = array();
-
-		// create the chunks
-		$chunks = explode("\r\n", chunk_split($tmp_new_value, self::CHUNK_SIZE));
-		// create chunk option, eg. nf_form_1_0, nf_form_1_1...
-		foreach ($chunks as $key => $value) {
-			if( '' == $value ) continue;
-			$option = $filter . '_' . $key;
-			update_option($option, $value, false);
-			$new_options[] = $option;
-		}
-		// set the chunk option with a value of the list of the chunks
-		update_option($filter . '_chunks', implode(',', $new_options));
-		return $new_value;
-	}
 
 } // End Class WPN_Helper
