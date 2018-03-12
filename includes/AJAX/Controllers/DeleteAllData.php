@@ -16,6 +16,7 @@ class NF_AJAX_Controllers_DeleteAllData extends NF_Abstracts_Controller
 		$post_result = 0;
 		$max_cnt = 250;
 		$form_id = $_POST[ 'form' ];
+		// sequel for getting 250 subs at a time
 		$sub_sql = "SELECT id FROM `" . $wpdb->prefix . "posts` AS p
 			LEFT JOIN `" . $wpdb->prefix . "postmeta` AS m ON p.id = m.post_id
 			WHERE p.post_type = 'nf_sub' AND m.meta_key = '_form_id'
@@ -23,11 +24,14 @@ class NF_AJAX_Controllers_DeleteAllData extends NF_Abstracts_Controller
 
 		while ($post_result <= $max_cnt ) {
 			$subs = $wpdb->get_col( $wpdb->prepare( $sub_sql, $form_id ),0 );
+			// if we are out of subs, then stop
 			if( 0 === count( $subs ) ) break;
+			// otherwise, let's delete the postmeta as well
 			$delete_meta_query = "DELETE FROM `" . $wpdb->prefix . "postmeta` WHERE post_id IN ( [IN] )";
 			$delete_meta_query = $this->prepare_in( $delete_meta_query, $subs );
 			$meta_result       = $wpdb->query( $delete_meta_query );
 			if ( $meta_result > 0 ) {
+				// now we actually delete the posts(nf_sub)
 				$delete_post_query = "DELETE FROM `" . $wpdb->prefix . "posts` WHERE id IN ( [IN] )";
 				$delete_post_query = $this->prepare_in( $delete_post_query, $subs );
 				$post_result       = $wpdb->query( $delete_post_query );
@@ -39,6 +43,16 @@ class NF_AJAX_Controllers_DeleteAllData extends NF_Abstracts_Controller
 		$this->_data[ 'form_id' ] = $_POST[ 'form' ];
 		$this->_data[ 'delete_count' ] = $total_subs_deleted;
 		$this->_data[ 'success' ] = true;
+
+		if ( 1 == $_POST[ 'last_form' ] ) {
+			//if we are on the last form, then deactivate and nuke db tables
+			$migrations = new NF_Database_Migrations();
+			$migrations->nuke(TRUE, TRUE);
+			$migrations->nuke_settings(TRUE, TRUE);
+			$migrations->nuke_deprecated(TRUE, TRUE);
+			deactivate_plugins( 'ninja-forms/ninja-forms.php' );
+			$this->_data[ 'plugin_url' ] = admin_url( 'plugins.php' );
+		}
 
 		$this->_respond();
 	}

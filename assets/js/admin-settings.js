@@ -41,8 +41,10 @@ jQuery(document).ready(function($) {
 	container.appendChild( deleteInput );
 	container.appendChild( lineBreak );
 	deleteMsgs = document.createElement( 'div' );
+	deleteMsgs.id = 'progressMsg';
 	deleteMsgs.style.display = 'none';
 	deleteMsgs.style.color = 'red';
+	container.appendChild( deleteMsgs );
 	confirm.innerHTML = 'Delete';
 	confirm.classList.add( 'confirm', 'nf-button', 'primary' );
 	confirm.style.float = 'left';
@@ -56,6 +58,7 @@ jQuery(document).ready(function($) {
 	message = document.createElement( 'div' );
 	message.appendChild( container );
 
+	// set up delete model with all the elements created above
 	deleteAllDataModal = new jBox( 'Modal', {
 		width: 450,
 		addClass: 'dashboard-modal',
@@ -66,6 +69,7 @@ jQuery(document).ready(function($) {
 	deleteAllDataModal.setContent( message.innerHTML );
 	deleteAllDataModal.setTitle( 'Delete All Ninja Forms Data?' );
 
+	// add event listener for cancel button
 	var btnCancel = deleteAllDataModal.container[0].getElementsByClassName('cancel')[0];
 	btnCancel.addEventListener('click', function() {
 		if( ! working ) {
@@ -74,38 +78,56 @@ jQuery(document).ready(function($) {
 	} );
 
 	var doAllDataDeletions = function( formIndex ) {
-	    console.log( nf_settings.forms );
-	    // $( '#' ).html( 'Deleting the first form' );
+		var last_form = 0;
+		// Gives the user confidence things are happening
+	    $( '#progressMsg' ).html( 'Deleting submissions for '
+	        + nf_settings.forms[ formIndex ].title + "" + ' ( ID: '
+	        + nf_settings.forms[ formIndex ].id + ' )' );
+		$( '#progressMsg').show();
+		// notify php this is the last one so it delete data and deactivate NF
+	    if( formIndex === nf_settings.forms.length - 1 ) {
+	    	last_form = 1;
+	    }
+	    // do this deletion thang
 		$.post(
 			nf_settings.ajax_url,
 			{
 				'action': 'nf_delete_all_data',
 				'form': nf_settings.forms[ formIndex ].id,
-				'security': nf_settings.nonce
+				'security': nf_settings.nonce,
+				'last_form': last_form
 			}
 		).then (function( response ) {
 			formIndex = formIndex + 1;
 			response = JSON.parse( response );
-			console.log( response );
+			// we expect success and then move to the next form
 			if( response.data.success ) {
 				if( formIndex < nf_settings.forms.length ) {
-					console.log ( response.data.success );
 					doAllDataDeletions( formIndex )
+				} else {
+					// if we're finished deleting data then redirect to plugins
+					if( response.data.plugin_url ) {
+						window.location = response.data.plugin_url;
+					}
 				}
 			}
-		} ).fail( function( ) {
-
+		} ).fail( function( xhr, status, error ) {
+			// writes error messages to console to help us debug
+			console.log( xhr.status + ' ' + error + '\r\n' +
+				'There was an error deleting submissions for '
+					+ nf_settings.forms[ formIndex ].title );
 		});
 	};
-
+	// Add event listener for delete button
 	var btnDelete = deleteAllDataModal.container[0].getElementsByClassName('confirm')[0];
-
 	btnDelete.addEventListener('click', function() {
 		var confirmVal = $('#confirmDeleteInput').val();
 
 		if (! working) {
 			working = true;
+			// Gotta type DELETE to play
 			if ('DELETE' === confirmVal) {
+				// this is the first one, so we'll start with index 0
 				doAllDataDeletions(0);
 			} else {
 				deleteAllDataModal.close();
